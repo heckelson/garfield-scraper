@@ -1,4 +1,5 @@
 import shutil
+import threading
 
 from bs4 import BeautifulSoup
 from urllib import request
@@ -40,9 +41,9 @@ def parse_date(_datestr: str):
 
 def download_image(imageurl, target_name, target_dir):
     full_file_path = f"{target_dir}/{target_name}"
-    print(f"Downloading file {full_file_path}...")
 
     if not Path.exists(Path(full_file_path)):
+        print(f"Downloading file {full_file_path}...")
         image_file, _ = request.urlretrieve(imageurl)
         shutil.move(image_file, full_file_path)
     else:
@@ -59,7 +60,7 @@ def download_all_images_in(collection):
         month_dir = f"{BASE_DIR}/{year:02d}/{month:02d}"
 
         Path.mkdir(Path(month_dir), exist_ok=True)
-        download_image(image_url, f"{day}.gif", month_dir)
+        download_image(image_url, f"{day:02d}.gif", month_dir)
 
 
 if __name__ == '__main__':
@@ -69,7 +70,7 @@ if __name__ == '__main__':
 
     print(f"Found {len(year_links)} links")
 
-    rmtree(BASE_DIR)
+    # rmtree(BASE_DIR)
     Path.mkdir(Path(BASE_DIR), exist_ok=True)
 
     for year_link in year_links:
@@ -81,7 +82,8 @@ if __name__ == '__main__':
         # the images now have have the following format:
         #   <img alt="garfield 19/6/1978" src="http://images.ucomics.com/comics/ga/1978/ga780619.gif"/>
         first_month_images = find_images_on_page(first_month_page)
-        download_all_images_in(first_month_images)
+        threading.Thread(target=download_all_images_in, args=(first_month_images,)).start()
+        # download_all_images_in(first_month_images)
 
         # extract all other months
         other_month_links = list(first_month_page.find_all('a'))
@@ -90,4 +92,4 @@ if __name__ == '__main__':
         for other_month_link in other_month_links:
             other_month_page = get_soup(read_url(BASE_URL + other_month_link['href']))
             other_month_images = find_images_on_page(other_month_page)
-            download_all_images_in(other_month_images)
+            threading.Thread(target=download_all_images_in, args=(other_month_images,)).start()
