@@ -2,6 +2,7 @@ import shutil
 import threading
 import queue
 import urllib.error
+import time
 
 from bs4 import BeautifulSoup
 from urllib import request
@@ -121,6 +122,7 @@ def s_print(*args, **kwargs):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     q = queue.Queue()
 
     threads = []
@@ -137,7 +139,7 @@ if __name__ == '__main__':
 
     Path.mkdir(Path(BASE_DIR), exist_ok=True)
 
-    for year_link in year_links:
+    for year_link in year_links[:1]:
         year = year_link.string
         Path.mkdir(Path(f"{BASE_DIR}/{year}"), exist_ok=True)
 
@@ -158,5 +160,6 @@ if __name__ == '__main__':
     original_q_size = q.qsize()
 
     q.join()
+    stop_time = time.time()
 
-    print("I hate Mondays!")
+    print(f"I hate Mondays! (Finished in {stop_time - start_time:.0f}s)")
