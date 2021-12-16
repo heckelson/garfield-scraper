@@ -139,7 +139,7 @@ if __name__ == '__main__':
 
     Path.mkdir(Path(BASE_DIR), exist_ok=True)
 
-    for year_link in year_links[:1]:
+    for year_link in year_links:
         year = year_link.string
         Path.mkdir(Path(f"{BASE_DIR}/{year}"), exist_ok=True)
 
