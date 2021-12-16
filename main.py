@@ -19,6 +19,12 @@ PRINT_LOCK = threading.Lock()
 
 
 def read_url(url: str):
+    """
+    Reads a URL and returns the string representation of that webpage.
+
+    :param url: The url you want to read.
+    :return: The web page in String format.
+    """
     file = request.urlretrieve(url)
 
     text = ""
@@ -29,21 +35,39 @@ def read_url(url: str):
 
 
 def get_soup(file_contents):
+    """
+    :param file_contents: Some HTML in String format
+    :return: A bs4 representation of that webpage
+    """
     return BeautifulSoup(file_contents, features='html.parser')
 
 
 def find_images_on_page(page: BeautifulSoup):
+    """
+    :param page: The bs4 page you want to search for images.
+    :return: A filtered list of images in bs4 format.
+    """
     images = page.find_all('img')
     images = list(filter(lambda x: str(x['src']).endswith("gif") and x['src'] not in BANNED_IMAGES, images))
     return images
 
 
 def parse_date(_datestr: str):
+    """
+    :param _datestr: A European-Style date, example: 24/3/2021
+    :return: a 3-tuple of (day, month, year)
+    """
     spl = _datestr.split('/')
     return int(spl[0]), int(spl[1]), int(spl[2])
 
 
-def download_image(image):
+def download_image(image: BeautifulSoup):
+    """
+    Parses some bs4 image tag to download the image that is mentioned in it, and
+    saves it in the right directory.
+
+    :param image: The image in bs4 format you want to download.
+    """
     image_url = image['src']
     alt_text = image['alt']
     _, datestring = alt_text.split(' ')
@@ -71,12 +95,15 @@ def download_all_images_in(collection):
     for image in collection:
         download_image(image)
 
+
 def add_images_to_queue(collection):
+    """Adds a collection of images to the working queue."""
     for image in collection:
         q.put(image)
 
 
 def worker():
+    """The method that is called in the worker threads."""
     while True:
         image = q.get()
         download_image(image)
@@ -131,3 +158,5 @@ if __name__ == '__main__':
     original_q_size = q.qsize()
 
     q.join()
+
+    print("I hate Mondays!")
