@@ -35,16 +35,18 @@ def find_images_on_page(page: BeautifulSoup):
 
 def parse_date(_datestr: str):
     spl = _datestr.split('/')
-    return spl[0], spl[1], spl[2]
+    return int(spl[0]), int(spl[1]), int(spl[2])
 
 
 def download_image(imageurl, target_name, target_dir):
-    image_file, _ = request.urlretrieve(imageurl)
-
     full_file_path = f"{target_dir}/{target_name}"
     print(f"Downloading file {full_file_path}...")
 
-    shutil.move(image_file, full_file_path)
+    if not Path.exists(Path(full_file_path)):
+        image_file, _ = request.urlretrieve(imageurl)
+        shutil.move(image_file, full_file_path)
+    else:
+        print(f"Skipping file {full_file_path} (already exists).")
 
 
 def download_all_images_in(collection):
@@ -54,8 +56,10 @@ def download_all_images_in(collection):
         _, datestring = alt_text.split(' ')
         day, month, year = parse_date(datestring)
 
-        Path.mkdir(Path(f"{BASE_DIR}/{year}/{month}"), exist_ok=True)
-        download_image(image_url, f"{day}.gif", f"{BASE_DIR}/{year}/{month}")
+        month_dir = f"{BASE_DIR}/{year:02d}/{month:02d}"
+
+        Path.mkdir(Path(month_dir), exist_ok=True)
+        download_image(image_url, f"{day}.gif", month_dir)
 
 
 if __name__ == '__main__':
