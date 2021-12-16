@@ -1,10 +1,11 @@
 import shutil
 import threading
+import queue
+import urllib.error
 
 from bs4 import BeautifulSoup
 from urllib import request
 from pathlib import Path
-from shutil import rmtree
 
 MONTHS = ["January", "February", "March", "April", "May", "June",
           "July", "August", "September", "October", "November", "December"]
@@ -12,6 +13,9 @@ BANNED_IMAGES = ["/img/valid-xhtml10.gif", "/img/valid-css.gif", "/img/vim.gif"]
 BASE_URL = "http://pt.jikos.cz"
 GARFIELD_URL = "http://pt.jikos.cz/garfield/"
 BASE_DIR = "./garfield"
+WORKER_THREADS = 32
+
+PRINT_LOCK = threading.Lock()
 
 
 def read_url(url: str):
@@ -39,38 +43,71 @@ def parse_date(_datestr: str):
     return int(spl[0]), int(spl[1]), int(spl[2])
 
 
-def download_image(imageurl, target_name, target_dir):
+def download_image(image):
+    image_url = image['src']
+    alt_text = image['alt']
+    _, datestring = alt_text.split(' ')
+    day, month, year = parse_date(datestring)
+
+    month_dir = f"{BASE_DIR}/{year:02d}/{month:02d}"
+    target_dir = month_dir
+    target_name = f"{day:02d}.gif"
     full_file_path = f"{target_dir}/{target_name}"
 
     if not Path.exists(Path(full_file_path)):
-        print(f"Downloading file {full_file_path}...")
-        image_file, _ = request.urlretrieve(imageurl)
-        shutil.move(image_file, full_file_path)
+        s_print(f"Downloading file {full_file_path}... ({q.qsize()} in queue)")
+        Path.mkdir(Path(month_dir), exist_ok=True)
+        try:
+            image_file, _ = request.urlretrieve(image_url)
+            shutil.move(image_file, full_file_path)
+        except urllib.error.HTTPError | urllib.error.HTTPError:
+            s_print(f"File {full_file_path} not found!")
+
     else:
-        print(f"Skipping file {full_file_path} (already exists).")
+        s_print(f"Skipping file {full_file_path} (already exists).")
 
 
 def download_all_images_in(collection):
     for image in collection:
-        image_url = image['src']
-        alt_text = image['alt']
-        _, datestring = alt_text.split(' ')
-        day, month, year = parse_date(datestring)
+        download_image(image)
 
-        month_dir = f"{BASE_DIR}/{year:02d}/{month:02d}"
+def add_images_to_queue(collection):
+    for image in collection:
+        q.put(image)
 
-        Path.mkdir(Path(month_dir), exist_ok=True)
-        download_image(image_url, f"{day:02d}.gif", month_dir)
+
+def worker():
+    while True:
+        image = q.get()
+        download_image(image)
+        q.task_done()
+
+
+def s_print(*args, **kwargs):
+    """
+    Thread safe printer.
+
+    Source: https://stackoverflow.com/a/50882022
+    """
+    with PRINT_LOCK:
+        print(*args, **kwargs)
 
 
 if __name__ == '__main__':
+    q = queue.Queue()
+
+    threads = []
+    for i in range(WORKER_THREADS):
+        threads.append(threading.Thread(target=worker, daemon=True))
+    for th in threads:
+        th.start()
+
     base_soup = get_soup(read_url(GARFIELD_URL))
     year_links = base_soup.find_all('a')
     year_links = list(filter(lambda lin: "garfield/" in str(lin), year_links))
 
-    print(f"Found {len(year_links)} links")
+    s_print(f"Found {len(year_links)} years.")
 
-    # rmtree(BASE_DIR)
     Path.mkdir(Path(BASE_DIR), exist_ok=True)
 
     for year_link in year_links:
@@ -79,11 +116,8 @@ if __name__ == '__main__':
 
         first_month_page = get_soup(read_url(BASE_URL + year_link['href']))
 
-        # the images now have have the following format:
-        #   <img alt="garfield 19/6/1978" src="http://images.ucomics.com/comics/ga/1978/ga780619.gif"/>
         first_month_images = find_images_on_page(first_month_page)
-        threading.Thread(target=download_all_images_in, args=(first_month_images,)).start()
-        # download_all_images_in(first_month_images)
+        add_images_to_queue(first_month_images)
 
         # extract all other months
         other_month_links = list(first_month_page.find_all('a'))
@@ -92,4 +126,8 @@ if __name__ == '__main__':
         for other_month_link in other_month_links:
             other_month_page = get_soup(read_url(BASE_URL + other_month_link['href']))
             other_month_images = find_images_on_page(other_month_page)
-            threading.Thread(target=download_all_images_in, args=(other_month_images,)).start()
+            add_images_to_queue(other_month_images)
+
+    original_q_size = q.qsize()
+
+    q.join()
