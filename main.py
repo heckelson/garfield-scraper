@@ -122,7 +122,7 @@ def s_print(*args, **kwargs):
 
 
 if __name__ == '__main__':
-    start_time = time.time()
+    start_time = time.perf_counter()
     q = queue.Queue()
 
     threads = []
@@ -160,6 +160,6 @@ if __name__ == '__main__':
     original_q_size = q.qsize()
 
     q.join()
-    stop_time = time.time()
+    stop_time = time.perf_counter()
 
     print(f"I hate Mondays! (Finished in {stop_time - start_time:.0f}s)")
